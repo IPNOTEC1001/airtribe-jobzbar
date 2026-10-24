@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792843891583,
+      "tag": "0000_jobzbar_core_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792844017223,
+      "tag": "0001_barmode_progress",
+      "breakpoints": true
+    }
+  ]
+}
