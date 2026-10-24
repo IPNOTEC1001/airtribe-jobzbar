@@ -50,6 +50,27 @@ export type Database = {
         }
         Relationships: []
       }
+      barmode_progress: {
+        Row: {
+          missed: number[]
+          track: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          missed?: number[]
+          track: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          missed?: number[]
+          track?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       barmode_unlocks: {
         Row: {
           amount_inr: number
