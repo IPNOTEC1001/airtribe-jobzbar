@@ -319,6 +319,7 @@ const TABS=[['feed','🏠','Feed'],['gigs','⚡','Gigs'],['jobs','💼','Jobs'],
 function renderNav(){
   const html=TABS.map(([k,e,l])=>`<button class="tab ${view===k?'on':''} ${k==='learn'?'tab-bm':''}" onclick="go('${k}')">${e} ${l}${k==='gigs'?`<span class="badge-dot">${S.jobs.filter(j=>j.type==='gig').length}</span>`:''}</button>`).join('');
   document.getElementById('tabs').innerHTML=html;
+  renderAuthChip();
   document.getElementById('mobnav').innerHTML=TABS.map(([k,e,l])=>`<button class="${view===k?'on':''}" onclick="go('${k}')"><span>${e}</span>${l}</button>`).join('');
 }
 function go(v){view=v;openLounge=null;if(v==='gigs')jobType='gig';if(v==='jobs')jobType='full';render();window.scrollTo({top:0,behavior:'smooth'})}
@@ -349,7 +350,7 @@ function rightCol(){
   const gigs=S.jobs.filter(j=>j.type==='gig').slice(0,3);
   return `<aside class="right side stack">
    <div class="card"><div class="live"><i></i>Live gigs</div>
-    ${gigs.map(j=>`<div class="trend" onclick="applyModal(${j.id})"><b>${esc(j.title)}</b><div class="small muted">${esc(j.city)} · <span style="color:var(--lime)">${esc(j.pay)}${esc(j.per)}</span></div></div>`).join('')}
+    ${gigs.map(j=>`<div class="trend" onclick="applyModal('${j.id}')"><b>${esc(j.title)}</b><div class="small muted">${esc(j.city)} · <span style="color:var(--lime)">${esc(j.pay)}${esc(j.per)}</span></div></div>`).join('')}
     <button class="btn ghost sm" style="width:100%;margin-top:10px" onclick="go('gigs')">See all gigs →</button></div>
    <div class="card"><h3 class="sec">People in your industry</h3>
     ${S.people.map(p=>{const c=S.connected.includes(p.name);return `<div class="person">${av(p.name)}<div class="info"><div style="font-weight:600">${esc(p.name)}</div><div class="small muted">${esc(p.role)}</div></div><button class="btn sm ${c?'done':'ghost'}" onclick="connect('${esc(p.name)}')">${c?'✓':'+ Connect'}</button></div>`}).join('')}
@@ -383,19 +384,19 @@ function postCard(p){
    <div class="body">${esc(p.body)}</div>
    <div class="small muted">🍻 ${p.likes} cheers · ${p.comments.length} comments</div>
    <div class="actions">
-    <button class="act ${p.liked?'on':''}" onclick="like(${p.id})">🍻 ${p.liked?'Cheered':'Cheers'}</button>
-    <button class="act" onclick="toggleC(${p.id})">💬 Comment</button>
-    <button class="act" onclick="share(${p.id})">↗ Share</button>
+    <button class="act ${p.liked?'on':''}" onclick="like('${p.id}')">🍻 ${p.liked?'Cheered':'Cheers'}</button>
+    <button class="act" onclick="toggleC('${p.id}')">💬 Comment</button>
+    <button class="act" onclick="share('${p.id}')">↗ Share</button>
    </div>
    ${open?`<div class="comments">${p.comments.map(c=>`<div class="cmt"><b>${esc(c.name)}</b><div>${esc(c.text)}</div></div>`).join('')}
-    <div class="cin"><input id="c${p.id}" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')addC(${p.id})"><button class="btn pri sm" onclick="addC(${p.id})">Send</button></div></div>`:''}
+    <div class="cin"><input id="c${p.id}" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')addC('${p.id}')"><button class="btn pri sm" onclick="addC('${p.id}')">Send</button></div></div>`:''}
   </article>`;
 }
 function addPost(){const b=document.getElementById('pbody').value.trim();if(!b)return toast('Write something first ✍️');
-  S.posts.unshift({id:Date.now(),name:S.me.name,role:S.me.role,tag:postTag,time:'now',likes:0,liked:false,body:b,comments:[]});save();render(true);toast('Posted to the feed 🎉')}
-function like(id){const p=S.posts.find(x=>x.id===id);p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render(true)}
+  const np={id:Date.now(),name:S.me.name,role:S.me.role,tag:postTag,time:'now',likes:0,liked:false,body:b,comments:[]};S.posts.unshift(np);save();render(true);toast('Posted to the feed 🎉');if(sbUser)sb.from('posts').insert({user_id:sbUser.id,author_name:S.me.name,author_role:S.me.role,tag:postTag,body:b}).select().single().then(({data})=>{if(data){np.id=data.id;np.cloud=true;save();render(true)}})}
+function like(id){const p=S.posts.find(x=>String(x.id)===String(id));if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render(true);if(p.cloud&&sbUser)sb.from('posts').update({likes:p.likes}).eq('id',p.id).then(()=>{})}
 function toggleC(id){openComments[id]=!openComments[id];render(true);setTimeout(()=>document.getElementById('c'+id)?.focus(),0)}
-function addC(id){const i=document.getElementById('c'+id);const t=i.value.trim();if(!t)return;S.posts.find(x=>x.id===id).comments.push({name:S.me.name,text:t});save();render(true);setTimeout(()=>document.getElementById('c'+id)?.focus(),0)}
+function addC(id){const i=document.getElementById('c'+id);const t=i.value.trim();if(!t)return;const p=S.posts.find(x=>String(x.id)===String(id));if(!p)return;p.comments.push({name:S.me.name,text:t});save();render(true);setTimeout(()=>document.getElementById('c'+id)?.focus(),0);if(p.cloud&&sbUser)sb.from('post_comments').insert({post_id:p.id,user_id:sbUser.id,author_name:S.me.name,body:t}).then(()=>{})}
 function share(id){navigator.clipboard?.writeText(location.href.split('#')[0]+'#post-'+id);toast('Link copied 🔗')}
 
 /* ============ JOBS ============ */
@@ -420,25 +421,25 @@ function jobsView(){
   </section>`;
 }
 function jobCard(j){
-  const ap=S.applied.includes(j.id),sv=S.saved.includes(j.id);
+  const ap=hasId(S.applied,j.id),sv=hasId(S.saved,j.id);
   return `<article class="card job ${j.type}">
    <div class="logo-sq">${j.emoji}</div>
    <div><h4>${esc(j.title)}</h4><div class="muted small">${esc(j.co)} · 📍 ${esc(j.city)} · ${esc(j.when)} · ${j.posted} ago</div>
     <div class="chips" style="margin-top:8px"><span class="chip ${j.type==='gig'?'lime':'amber'}">${j.type==='gig'?'⚡ Gig':'💼 Full-time'}</span><span class="chip">${esc(j.role)}</span>${j.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></div>
    <div class="side-pay"><div class="pay">${esc(j.pay)}<div class="small muted" style="font-family:'Space Grotesk'">${esc(j.per)}</div></div>
-    <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn ghost sm" onclick="toggleSave(${j.id})" title="Save">${sv?'★':'☆'}</button>
-    <button class="btn sm ${ap?'done':'pri'}" onclick="${ap?'':`applyModal(${j.id})`}">${ap?'✓ Applied':j.type==='gig'?'Grab shift':'Easy apply'}</button></div></div>
+    <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn ghost sm" onclick="toggleSave('${j.id}')" title="Save">${sv?'★':'☆'}</button>
+    <button class="btn sm ${ap?'done':'pri'}" onclick="${ap?'':`applyModal('${j.id}')`}">${ap?'✓ Applied':j.type==='gig'?'Grab shift':'Easy apply'}</button></div></div>
   </article>`;
 }
-function toggleSave(id){S.saved=S.saved.includes(id)?S.saved.filter(x=>x!==id):[...S.saved,id];save();render(true);toast(S.saved.includes(id)?'Saved ⭐':'Removed')}
-function applyModal(id){const j=S.jobs.find(x=>x.id===id);if(S.applied.includes(id))return toast('Already applied ✓');
+function toggleSave(id){S.saved=hasId(S.saved,id)?S.saved.filter(x=>String(x)!==String(id)):[...S.saved,id];save();render(true);toast(hasId(S.saved,id)?'Saved ⭐':'Removed')}
+function applyModal(id){const j=S.jobs.find(x=>String(x.id)===String(id));if(!j)return;if(hasId(S.applied,id))return toast('Already applied ✓');
   modal(`<div class="row">${'<div class="logo-sq">'+j.emoji+'</div>'}<div><div class="display" style="font-size:30px">${esc(j.title)}</div><div class="muted small">${esc(j.co)} · ${esc(j.city)} · <span style="color:var(--amber)">${esc(j.pay)}${esc(j.per)}</span></div></div></div>
    <p class="small muted" style="margin-top:12px">Your Bar Card goes with this application. Add a short note to stand out.</p>
    <div class="field"><label>Phone / WhatsApp</label><input id="ap-phone" placeholder="+91 98xxxxxx"></div>
    <div class="field"><label>Note to employer</label><textarea id="ap-note" rows="3" placeholder="e.g. 3 yrs at a high-volume bar, free this weekend"></textarea></div>
-   <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="submitApply(${id})">Send application</button></div>`)}
+   <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="submitApply('${id}')">Send application</button></div>`)}
 function submitApply(id){const ph=document.getElementById('ap-phone').value.trim();if(!/^[+\d][\d\s-]{6,}$/.test(ph))return toast('Add a valid phone number 📱');
-  S.applied.push(id);save();closeModal();render(true);toast('Application sent! 🍸')}
+  const note=document.getElementById('ap-note').value.trim();S.applied.push(id);save();closeModal();render(true);toast('Application sent! 🍸');if(sbUser&&isCloudId(id))sb.from('job_applications').insert({job_id:id,user_id:sbUser.id,note}).then(()=>{})}
 function postJobModal(){
   modal(`<div class="display" style="font-size:34px">Post a job</div><p class="small muted">Free during beta. Goes live right away.</p>
    <div class="field"><label>Type</label><select id="pj-type"><option value="gig">⚡ Gig / shift</option><option value="full">💼 Long-term</option></select></div>
@@ -452,7 +453,7 @@ function postJobModal(){
 function submitJob(){const v=k=>document.getElementById('pj-'+k).value.trim();
   if(!v('title')||!v('co')||!v('pay'))return toast('Fill title, venue and pay');
   const type=v('type');S.jobs.unshift({id:Date.now(),type,title:v('title'),co:v('co'),city:v('city'),role:v('role'),pay:v('pay'),per:type==='gig'?'/shift':'/yr',when:v('when')||(type==='gig'?'Flexible':'Full-time'),emoji:type==='gig'?'⚡':'💼',tags:['New'],posted:'now'});
-  save();closeModal();jobType=type;view=type==='gig'?'gigs':'jobs';city='All cities';role='All roles';render();toast('Job is live 🚀')}
+  save();closeModal();jobType=type;view=type==='gig'?'gigs':'jobs';city='All cities';role='All roles';render();toast('Job is live 🚀');if(sbUser)sb.from('jobs').insert({user_id:sbUser.id,type,title:v('title'),company:v('co'),city:v('city'),role:v('role'),pay:v('pay'),per:type==='gig'?'/shift':'/yr',when_text:v('when')||(type==='gig'?'Flexible':'Full-time')}).select().single().then(({data})=>{if(data){const nj=S.jobs.find(j=>!j.cloud&&j.title===v('title'));if(nj){nj.id=data.id;nj.cloud=true;save()}}})}
 
 /* ============ LOUNGES ============ */
 function loungesView(){
@@ -475,7 +476,7 @@ function addReply(id){const i=document.getElementById('r'+id);const v=i.value.tr
 function openThreadFromAny(id){const t=S.threads.find(x=>x.id===id);view='lounges';openLounge=t.lounge;render()}
 
 /* ============ MY CARD ============ */
-function meView(){const m=S.me;const ap=S.jobs.filter(j=>S.applied.includes(j.id));const sv=S.jobs.filter(j=>S.saved.includes(j.id));
+function meView(){const m=S.me;const ap=S.jobs.filter(j=>hasId(S.applied,j.id));const sv=S.jobs.filter(j=>hasId(S.saved,j.id));
   return `<section class="stack">
    <div class="card" style="padding:6px 6px 22px"><div class="pcover" style="height:110px"></div><div style="padding:0 18px">
     ${av(m.name,'lg')}<div class="row between" style="flex-wrap:wrap"><div><div class="display" style="font-size:40px;margin-top:6px">${esc(m.name)}</div><div class="muted">${esc(m.role)} · ${esc(m.exp)} experience</div></div>
@@ -485,7 +486,7 @@ function meView(){const m=S.me;const ap=S.jobs.filter(j=>S.applied.includes(j.id
     <h3 class="sec" style="margin-top:18px">Badges</h3><div class="chips"><span class="chip lime">🍸 Verified Pour</span><span class="chip pink">🔥 Early member</span>${S.applied.length>=3?'<span class="chip sky">🏆 Hustler</span>':''}</div>
    </div></div>
    <div class="card"><h3 class="sec">My applications (${ap.length})</h3>${ap.length?ap.map(j=>`<div class="trend"><b>${esc(j.title)}</b><div class="small muted">${esc(j.co)} · <span style="color:var(--lime)">Sent ✓</span></div></div>`).join(''):'<p class="muted small">Nothing yet. <a style="color:var(--amber)" href="#" onclick="go(\'gigs\');return false">Grab a gig →</a></p>'}</div>
-   <div class="card"><h3 class="sec">Saved (${sv.length})</h3>${sv.length?sv.map(j=>`<div class="trend" onclick="applyModal(${j.id})"><b>${esc(j.title)}</b><div class="small muted">${esc(j.co)} · ${esc(j.pay)}${esc(j.per)}</div></div>`).join(''):'<p class="muted small">Tap ☆ on any job to save it.</p>'}</div>
+   <div class="card"><h3 class="sec">Saved (${sv.length})</h3>${sv.length?sv.map(j=>`<div class="trend" onclick="applyModal('${j.id}')"><b>${esc(j.title)}</b><div class="small muted">${esc(j.co)} · ${esc(j.pay)}${esc(j.per)}</div></div>`).join(''):'<p class="muted small">Tap ☆ on any job to save it.</p>'}</div>
    <button class="btn ghost sm" onclick="if(confirm('Reset all demo data?')){localStorage.removeItem('jobzbar_v1');location.reload()}">Reset demo data</button>
   </section>`}
 function editMe(){const m=S.me;modal(`<div class="display" style="font-size:34px">Edit your Bar Card</div>
@@ -496,7 +497,7 @@ function editMe(){const m=S.me;modal(`<div class="display" style="font-size:34px
   <div class="field"><label>Skills (comma separated)</label><input id="me-skills" value="${esc(m.skills.join(', '))}"></div>
   <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="saveMe()">Save</button></div>`)}
 function saveMe(){const v=k=>document.getElementById('me-'+k).value.trim();if(!v('name'))return toast('Name is required');
-  S.me={name:v('name'),role:v('role'),exp:v('exp'),bio:v('bio'),skills:v('skills').split(',').map(s=>s.trim()).filter(Boolean)};save();closeModal();render(true);toast('Bar Card updated ✨')}
+  S.me={name:v('name'),role:v('role'),exp:v('exp'),bio:v('bio'),skills:v('skills').split(',').map(s=>s.trim()).filter(Boolean)};save();closeModal();render(true);toast('Bar Card updated ✨');cloudSaveProfile()}
 
 /* ============ HELPERS ============ */
 function connect(n){if(!S.connected.includes(n)){S.connected.push(n);save();render(true);toast('Connected with '+n+' 🤝')}}
@@ -530,7 +531,7 @@ function venueAllowed(session,venueId,now=Date.now()){return Boolean(session&&se
 function activeVenue(){if(!venueSession)return null;return venueAllowed(venueSession,venueSession.venueId)?VENUES.find(v=>v.id===venueSession.venueId)||null:null}
 function venueView(){const v=activeVenue();return `<section class="stack"><div class="venue-intro"><div class="venue-title"><span class="eyebrow">YOUR INDUSTRY, IN PERSON</span><span class="chip">◉ ${v?'Emulated session active':'Off venue network'}</span></div><h1>At the bar.</h1><p class="muted">One venue. One room. Real-world company.<br>Venue conversations are reserved for people on that bar’s JOBZ.BAR network.</p></div><div class="demo-note">Portal emulation · Sample venues and people. No Wi-Fi verification or live messaging is connected.</div>${v?roomView(v):`<div class="venue-title"><h3>Explore the partner-venue concept</h3><span class="small muted">4 sample spaces · Worldwide</span></div><div class="venue-grid">${VENUES.map(v=>`<article class="card venue-card"><div class="venue-card-cover"><span class="display">${v.name}</span><span>↗</span></div><div class="venue-card-body"><span class="eyebrow">${v.city}</span><p class="small muted" style="margin-top:8px">${v.kind}</p><div class="small muted" style="margin-top:12px">◉ Venue chat locked</div><button class="btn ghost" onclick="portalModal('${v.id}')">Preview portal check-in →</button></div></article>`).join('')}</div>`}</section>`}
 function portalModal(id){const v=VENUES.find(v=>v.id===id);if(!v)return;modal(`<span class="eyebrow">PORTAL EMULATION · NO PAYMENT</span><h2 style="margin-top:10px">Check in at ${v.name}</h2><p class="muted small" style="margin-top:8px">${v.city} · ${v.ssid}</p><div class="demo-note" style="margin-top:16px">This previews a partner Wi-Fi check-in. Your actual network is not detected or verified.</div><div class="field"><label for="p-alias">Tonight’s persona name</label><input id="p-alias" maxlength="24" placeholder="e.g. Midnight Negroni" value="${esc(S.me.name.split(' ')[0])}"></div><div class="field"><label for="p-role">You are</label><select id="p-role">${PERSONA_ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div><div class="field"><label>Vibe tags (pick up to 3)</label><div class="persona-tags">${PERSONA_TAGS.map(t=>`<label class="tagpick"><input type="checkbox" value="${t}" name="p-tag">${t}</label>`).join('')}</div></div><div class="field"><label for="venue-intent">Here to talk about</label><select id="venue-intent"><option>Industry connections</option><option>Cocktails & spirits</option><option>Career opportunities</option><option>Collaborations</option></select></div><label class="consent"><input type="checkbox" id="venue-consent"><span>I choose to appear to everyone on the JOBZ.BAR partner network tonight (all connected venues). I’ll respect other members and won’t share personal contact details in the public room.</span></label><div class="row between"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="enterVenue('${id}')">Start emulated session</button></div>`)}
-function enterVenue(id){const v=VENUES.find(v=>v.id===id);if(!v)return;if(!document.getElementById('venue-consent')?.checked)return toast('Choose visibility consent before entering');clearVenueTimers();venueSession={mode:'emulation',venueId:id,expiresAt:Date.now()+60*60*1000,joinedAt:Date.now(),intent:document.getElementById('venue-intent').value,persona:{alias:(document.getElementById('p-alias').value.trim()||S.me.name).slice(0,24),role:document.getElementById('p-role').value,tags:[...document.querySelectorAll('input[name=p-tag]:checked')].map(x=>x.value).slice(0,3)}};chatTurns={};netFilter='global';blockedMembers=new Set();chatChannel='room';venueMessages=[{venueId:id,channel:'room',name:'Room notice',text:'Welcome to '+v.name+'. You are on the JOBZ.BAR network — tap in to anyone at any partner bar. Sample people & scripted replies; this session stays in this browser.'}];closeModal();view='venue';render(true);chatOpen=true;renderChat();toast('Emulated check-in: '+v.name)}
+function enterVenue(id){const v=VENUES.find(v=>v.id===id);if(!v)return;if(!document.getElementById('venue-consent')?.checked)return toast('Choose visibility consent before entering');clearVenueTimers();venueSession={mode:'emulation',venueId:id,expiresAt:Date.now()+60*60*1000,joinedAt:Date.now(),intent:document.getElementById('venue-intent').value,persona:{alias:(document.getElementById('p-alias').value.trim()||S.me.name).slice(0,24),role:document.getElementById('p-role').value,tags:[...document.querySelectorAll('input[name=p-tag]:checked')].map(x=>x.value).slice(0,3)}};chatTurns={};netFilter='global';blockedMembers=new Set();chatChannel='room';venueMessages=[{venueId:id,channel:'room',name:'Room notice',text:'Welcome to '+v.name+'. You are on the JOBZ.BAR network — tap in to anyone at any partner bar. Sample people & scripted replies; this session stays in this browser.'}];closeModal();view='venue';render(true);chatOpen=true;renderChat();toast('Emulated check-in: '+v.name);if(sbUser)sb.from('venue_sessions').insert({user_id:sbUser.id,venue_id:id,venue_name:v.name,alias:venueSession.persona.alias,role:venueSession.persona.role,tags:venueSession.persona.tags,intent:venueSession.intent,expires_at:new Date(venueSession.expiresAt).toISOString()}).select().single().then(({data})=>{if(data)sbVenueId=data.id})}
 function roomView(v){const P=venueSession.persona;const all=netPeople().filter(p=>!blockedMembers.has(p.id));const list=all.filter(p=>netFilter==='venue'?p.venueId===v.id:netFilter==='vibe'?P.tags.some(t=>(p.topic+' '+p.role).toLowerCase().includes(t.toLowerCase().split(' ')[0].slice(0,5))):true);const chats=Object.keys(chatTurns).length;
 return `<div class="ticker"><div class="ticker-in">${all.concat(all).map(p=>`<span><span class="presence"></span>${p.name.split(' ')[0]} · ${p.venueName}</span>`).join('')}</div></div><div class="room-band"><div><span class="eyebrow"><span class="presence"></span>CONNECTED · ${v.name.toUpperCase()} · ${v.city.split(',')[0].toUpperCase()}</span><h2>${esc(P.alias)}</h2><p class="small muted">${esc(P.role)}${P.tags.length?' · '+P.tags.map(esc).join(' · '):''}</p></div><div class="row" style="gap:6px"><button class="btn ghost sm" onclick="statsModal()">◤ Stats</button><button class="btn ghost sm" onclick="filtersModal()">◎ Filters</button><button class="btn ghost sm" onclick="exitVenueModal()">⏻ Exit session</button></div></div><div class="net-stats"><div><b>${VENUES.length}</b><span>Bars live</span></div><div><b>${all.length}</b><span>Online tonight</span></div><div><b>${chats}</b><span>Chats open</span></div><div><b>${S.connected.length}</b><span>Connections</span></div></div><div class="venue-title"><h3>On the network tonight</h3><div class="row" style="gap:6px">${[['vibe','◎ Same vibe'],['venue','⌂ This bar'],['global','✈ Global']].map(([k,l])=>`<button class="btn ${netFilter===k?'pri':'ghost'} sm" onclick="netFilter='${k}';render(true)">${l}</button>`).join('')}<button class="btn ghost sm" onclick="openVenueChat('room')">◉ Bar room</button></div></div><div class="room-members">${list.length?list.map(p=>`<article class="card member-card"><div class="row">${av(p.name)}<div><h3>${p.name}</h3><div class="small muted">${p.role}</div><span class="eyebrow"><span class="presence"></span>${p.venueId===v.id?'Here with you':esc(p.venueName)+' · '+esc(p.city.split(',')[0])}</span></div></div><p class="small muted" style="margin-top:12px">Talking about ${p.topic.toLowerCase()}</p><button class="btn ${chatTurns[p.id]?'pri':'ghost'} sm" onclick="openVenueChat('${p.id}')">${chatTurns[p.id]?'↺ Continue chat':'◇ Tap in'}</button></article>`).join(''):'<p class="muted small">Nobody matches this vibe yet — try Global.</p>'}</div><div class="card live-log"><h3 class="sec">⚡ Live transmission log</h3>${LIVE_LOG.map((l,i)=>`<div><span style="color:${BAR_COLORS[i%4]}">●</span> ${l}</div>`).join('')}<p class="small muted" style="margin-top:10px">Sample feed · no real venues or people are connected.</p></div>`}
 function statsModal(){const v=activeVenue();if(!v)return;const all=netPeople();const online=CITY_NODES.reduce((a,c)=>a+c[2],0);const maxN=Math.max(...CITY_NODES.map(c=>c[2]));const inBar=all.filter(p=>p.venueId===v.id).length;modal(`<div class="venue-title"><span class="eyebrow">◆ JOBZ.BAR · LIVE PLATFORM STATS</span><button class="icon-btn" aria-label="Close stats" onclick="closeModal()">✕</button></div><div class="stat-grid"><div class="stat-box"><b style="color:var(--amber)">${online}</b><span>Online now</span></div><div class="stat-box"><b style="color:var(--lime)">${VENUES.length}</b><span>Venues live</span></div><div class="stat-box"><b style="color:var(--sky)">${CITY_NODES.length}</b><span>Cities live</span></div><div class="stat-box"><b style="color:var(--pink)">${S.connected.length}</b><span>Your connects</span></div></div><h3 class="sec">City breakdown · Nodes online</h3>${CITY_NODES.map((c,i)=>`<div class="bar-row"><span>${c[1]} ${c[0]}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c[2]/maxN*100)}%;background:${BAR_COLORS[i%4]}"></div></div><b>${c[2]}</b></div>`).join('')}<h3 class="sec" style="margin-top:18px">Persona mix across the grid</h3>${PERSONA_MIX.map((m,i)=>`<div class="bar-row"><span>${m[0]}</span><div class="bar-track"><div class="bar-fill" style="width:${m[1]}%;background:${BAR_COLORS[i%4]}"></div></div><b>${m[1]}%</b></div>`).join('')}<h3 class="sec" style="margin-top:18px">Tonight at ${esc(v.name)} · ${esc(v.city.split(',')[0])}</h3><div class="stat-grid"><div class="stat-box"><b>${inBar}</b><span>Nodes in this bar</span></div><div class="stat-box"><b>${Object.keys(chatTurns).length}</b><span>Your chats open</span></div></div><p class="small muted" style="margin-top:12px">Numbers refresh live off the city grid · anonymised · no personal data leaves your session. (Sample figures for the demo.)</p>`)}
@@ -693,7 +694,7 @@ function bmPaywall(sw){const total=BM_TRACKS.reduce((n,t)=>n+QUIZ_QUESTIONS[t.k]
  <div class="bm-grid"><div class="bm-card"><div class="bm-eyebrow">ONE-TIME TEST FEE</div><div class="bm-price">₹${BM_PRICE}</div><p class="small muted">Paid once. No subscription.</p><ul class="bm-list"><li>All 3 tracks · ${total} expert questions</li><li>AI Bar Coach on every wrong answer</li><li>Personal 7-day learning plan</li><li>Retry-what-you-missed practice</li><li>Ask a human mentor</li></ul><button class="bm-btn" style="width:100%" onclick="bmCheckout()">Unlock BAR MODE — ₹${BM_PRICE}</button></div>
  ${BM_TRACKS.map(t=>`<div class="bm-card"><div class="bm-eyebrow">${QUIZ_QUESTIONS[t.k].length} QUESTIONS</div><h3>${t.name}</h3><p class="small muted">${t.who}</p><p style="margin-top:12px;font-size:14px">“${esc(QUIZ_QUESTIONS[t.k][0].q)}”</p></div>`).join('')}</div></section>`}
 function bmCheckout(){modal(`<span class="eyebrow">DEMO CHECKOUT · NO REAL MONEY</span><h2 class="display" style="font-size:40px;margin:10px 0 4px">BAR MODE</h2><p class="muted small">One-time test fee · all tracks · AI coach</p><div class="display" style="font-size:64px;margin:14px 0">₹${BM_PRICE}</div><p class="small muted">This prototype simulates payment. A live payment step (e.g. Pine Labs) plugs in here before launch.</p><div class="row" style="margin-top:16px;gap:8px"><button class="btn pri" onclick="bmPay()">Pay ₹${BM_PRICE} (demo)</button><button class="btn ghost" onclick="closeModal()">Cancel</button></div>`)}
-function bmPay(){BM.paid=true;BM.paidAt=Date.now();bmSave();closeModal();bmMode='bar';render();toast('✦ BAR MODE unlocked — welcome in')}
+function bmPay(){BM.paid=true;BM.paidAt=Date.now();bmSave();closeModal();bmMode='bar';render();toast('✦ BAR MODE unlocked — welcome in');if(sbUser)sb.from('barmode_unlocks').upsert({user_id:sbUser.id,amount_inr:BM_PRICE,provider:'demo'}).then(()=>{})}
 function bmHome(sw){const days=bmStreakDays();const last=BM.attempts[BM.attempts.length-1];const miss=bmMissedCount();
  return `<section class="bm">${sw}<div class="bm-row" style="justify-content:space-between"><div><div class="bm-eyebrow">BAR MODE · MEMBER</div><h1 class="bm-title">Your learning <em>bar</em></h1></div><span class="bm-demo">₹${BM_PRICE} · PAID ONCE</span></div>
  <div class="bm-grid"><div class="bm-card"><div class="small muted">Tests taken</div><div class="bm-stat">${BM.attempts.length}</div></div><div class="bm-card"><div class="small muted">Last score</div><div class="bm-stat">${last?Math.round(last.score/last.total*100)+'%':'—'}</div></div><div class="bm-card"><div class="small muted">To revisit</div><div class="bm-stat">${miss}</div></div>
@@ -710,7 +711,7 @@ function bmExplain(){if(bmAiBusy)return;const Q=bmQuiz,q=QUIZ_QUESTIONS[Q.track]
 function bmNext(){const Q=bmQuiz;if(Q.pos+1<Q.idx.length){Q.pos++;render();return}bmFinish()}
 function bmFinish(){const Q=bmQuiz,qs=QUIZ_QUESTIONS[Q.track];const wrong=Q.idx.filter((qi,p)=>Q.answers[p]!==qs[qi].ans);const right=Q.idx.filter((qi,p)=>Q.answers[p]===qs[qi].ans);
  const prev=new Set(BM.missed[Q.track]||[]);right.forEach(i=>prev.delete(i));wrong.forEach(i=>prev.add(i));BM.missed[Q.track]=[...prev];
- BM.attempts.push({track:Q.track,score:Q.score,total:Q.idx.length,at:Date.now(),revisit:Q.missedOnly});bmSave();Q.done=true;Q.wrong=wrong;render();window.scrollTo({top:0,behavior:'smooth'})}
+ BM.attempts.push({track:Q.track,score:Q.score,total:Q.idx.length,at:Date.now(),revisit:Q.missedOnly});bmSave();Q.done=true;Q.wrong=wrong;render();window.scrollTo({top:0,behavior:'smooth'});if(sbUser){sb.from('barmode_attempts').insert({user_id:sbUser.id,track:Q.track,score:Q.score,total:Q.idx.length,missed:wrong,revisit:Q.missedOnly}).then(()=>{});sb.from('barmode_progress').upsert({user_id:sbUser.id,track:Q.track,missed:BM.missed[Q.track]}).then(()=>{})}}
 function bmRank(p){return p>=85?'MASTER MIXOLOGIST':p>=65?'EXPERT PRO':p>=45?'PROFESSIONAL':'ROOKIE'}
 function bmResult(){const Q=bmQuiz,t=bmTrack(Q.track),pct=Math.round(Q.score/Q.idx.length*100),qs=QUIZ_QUESTIONS[Q.track];
  return `<section class="bm"><div class="bm-eyebrow">${t.name.toUpperCase()} · RESULT</div><div class="bm-row" style="gap:24px;margin-top:10px"><div class="bm-price">${Q.score}/${Q.idx.length}</div><div><div class="bm-title" style="font-size:40px;margin:0">${bmRank(pct)}</div><p class="muted">${pct}% · ${Q.wrong.length} to revisit</p></div></div>
@@ -721,7 +722,7 @@ async function bmPlan(){if(bmAiBusy)return;const Q=bmQuiz,qs=QUIZ_QUESTIONS[Q.tr
  const txt=await bmCoach({mode:'plan',track:bmTrack(Q.track).name,score:Q.score,total:Q.idx.length,missed},'bm-ai-plan');if(txt&&bmQuiz===Q)Q.plan=txt}
 function bmQuit(){bmQuiz=null;render()}
 function bmMentor(){modal(`<span class="eyebrow">HUMAN IN THE LOOP</span><h2 class="display" style="font-size:36px;margin:10px 0">Ask a mentor</h2><p class="small muted">A senior bartender from the JOBZ.BAR network reviews and replies within 24h.</p><textarea id="bm-mq" rows="4" style="width:100%;margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card)" placeholder="e.g. How do I speed up my pour accuracy for a busy Friday?"></textarea><div class="row" style="margin-top:12px;gap:8px"><button class="btn pri" onclick="bmSendMentor()">Send to mentor</button><button class="btn ghost" onclick="closeModal()">Cancel</button></div>`)}
-function bmSendMentor(){const v=document.getElementById('bm-mq').value.trim();if(!v)return toast('Write your question first');BM.mentor.unshift({q:v.slice(0,300),status:'Waiting for mentor',at:Date.now()});bmSave();closeModal();render(true);toast('Sent to a mentor 🤝')}
+function bmSendMentor(){const v=document.getElementById('bm-mq').value.trim();if(!v)return toast('Write your question first');BM.mentor.unshift({q:v.slice(0,300),status:'Waiting for mentor',at:Date.now()});bmSave();closeModal();render(true);toast('Sent to a mentor 🤝');if(sbUser)sb.from('mentor_requests').insert({user_id:sbUser.id,question:v.slice(0,300)}).then(()=>{})}
 
 function render(keepScroll){
   renderNav();
@@ -729,6 +730,74 @@ function render(keepScroll){
   const wide=view!=='feed';if(view==='learn'){document.getElementById('app').innerHTML=`<div class="wrap">${main}</div>`;return}
   document.getElementById('app').innerHTML=`<div class="wrap ${wide?'':''}">${view==='feed'&&!query?hero():''}${leftCol()}${main}${rightCol()}</div>`;
 }
+
+/* ============ LOVABLE CLOUD SYNC ============
+   Signed-in members get real accounts, a shared feed, shared jobs and
+   cloud-saved BAR MODE progress. Signed-out / standalone (GitHub Pages)
+   keeps working exactly as before with local demo data. */
+const JB_CLOUD={url:'"https://pqlodctqzgvyyufesvmt.supabase.co"',key:'"sb_publishable_xWfmfApPYAbXzO1ydclQPw_GQYlpNML"'};
+let sb=null,sbUser=null,sbVenueId=null;
+const hasId=(arr,id)=>arr.some(x=>String(x)===String(id));
+const isCloudId=id=>typeof id==='string'&&id.length>20;
+function renderAuthChip(){const t=document.getElementById('tabs');if(!t)return;document.getElementById('authchip')?.remove();
+ const b=document.createElement('button');b.id='authchip';b.className='tab';b.style.marginLeft='6px';
+ if(sbUser){b.innerHTML='👤 '+esc((S.me.name||'Me').split(' ')[0])+' · Sign out';b.onclick=()=>{if(confirm('Sign out of JOBZ.BAR?'))window.parent.postMessage({jobzbar:'sign-out'},location.origin)}}
+ else{b.innerHTML='🔑 Sign in with Google';b.onclick=()=>{if(window.parent===window){toast('Sign in is available on the hosted app');return}window.parent.postMessage({jobzbar:'google-signin'},location.origin);toast('Opening Google sign-in…')}}
+ t.appendChild(b)}
+async function cloudInit(){
+ try{
+  const mod=await import('https://esm.sh/@supabase/supabase-js@2');
+  sb=mod.createClient(JB_CLOUD.url,JB_CLOUD.key);
+  window.addEventListener('message',async e=>{
+   if(e.origin!==location.origin)return;const m=e.data||{};
+   if(m.jobzbar==='session'){if(m.session){const {error}=await sb.auth.setSession(m.session);if(!error)cloudOnSession()}else if(sbUser){sbUser=null;sbVenueId=null;renderAuthChip();render(true)}}
+  });
+  const {data:{session}}=await sb.auth.getSession();
+  if(session)await cloudOnSession();else renderAuthChip();
+  if(window.parent!==window)window.parent.postMessage({jobzbar:'session-request'},location.origin);
+ }catch(e){/* standalone or offline: local demo mode */}
+}
+async function cloudOnSession(){
+ const {data:{user}}=await sb.auth.getUser();if(!user)return;sbUser=user;
+ await Promise.all([cloudProfile(),cloudBarmode(),cloudFeed(),cloudJobs(),cloudApplications()]);
+ renderAuthChip();render(true);
+}
+async function cloudProfile(){
+ const {data}=await sb.from('profiles').select('*').eq('id',sbUser.id).maybeSingle();
+ if(data&&data.name){S.me={name:data.name,role:data.headline,exp:data.experience,bio:data.bio,skills:data.skills||[]};save()}
+ else{const nm=sbUser.user_metadata?.full_name||sbUser.email?.split('@')[0]||'Member';await sb.from('profiles').upsert({id:sbUser.id,name:nm});S.me={...S.me,name:nm};save()}
+}
+async function cloudSaveProfile(){if(!sbUser)return;await sb.from('profiles').upsert({id:sbUser.id,name:S.me.name,headline:S.me.role,experience:S.me.exp,bio:S.me.bio,skills:S.me.skills})}
+async function cloudBarmode(){
+ const {data:u}=await sb.from('barmode_unlocks').select('*').eq('user_id',sbUser.id).maybeSingle();
+ if(u){BM.paid=true;BM.paidAt=new Date(u.unlocked_at).getTime()}
+ const {data:at}=await sb.from('barmode_attempts').select('*').eq('user_id',sbUser.id).order('created_at');
+ if(at&&at.length)BM.attempts=at.map(a=>({track:a.track,score:a.score,total:a.total,at:new Date(a.created_at).getTime(),revisit:a.revisit}));
+ const {data:pr}=await sb.from('barmode_progress').select('*').eq('user_id',sbUser.id);
+ if(pr&&pr.length){BM.missed={};pr.forEach(p=>BM.missed[p.track]=p.missed||[])}
+ const {data:mr}=await sb.from('mentor_requests').select('*').eq('user_id',sbUser.id).order('created_at',{ascending:false});
+ if(mr&&mr.length)BM.mentor=mr.map(m=>({q:m.question,status:m.status,at:new Date(m.created_at).getTime()}));
+ bmSave();
+}
+async function cloudFeed(){
+ const {data:posts}=await sb.from('posts').select('*').order('created_at',{ascending:false}).limit(50);
+ if(!posts)return;
+ const {data:cmts}=await sb.from('post_comments').select('*').order('created_at');
+ const byPost={};(cmts||[]).forEach(c=>{(byPost[c.post_id]=byPost[c.post_id]||[]).push({name:c.author_name,text:c.body})});
+ const cloud=posts.map(p=>({id:p.id,name:p.author_name,role:p.author_role,tag:p.tag,time:new Date(p.created_at).toLocaleDateString(),likes:p.likes,liked:false,body:p.body,comments:byPost[p.id]||[],cloud:true}));
+ S.posts=[...cloud,...S.posts.filter(p=>!p.cloud)];save();
+}
+async function cloudJobs(){
+ const {data:jobs}=await sb.from('jobs').select('*').order('created_at',{ascending:false}).limit(100);
+ if(!jobs)return;
+ const cloud=jobs.map(j=>({id:j.id,type:j.type,title:j.title,co:j.company,city:j.city,role:j.role,pay:j.pay,per:j.per,when:j.when_text,emoji:j.type==='gig'?'⚡':'💼',tags:['Member'],posted:'recently',cloud:true}));
+ S.jobs=[...cloud,...S.jobs.filter(j=>!j.cloud)];save();
+}
+async function cloudApplications(){
+ const {data}=await sb.from('job_applications').select('job_id').eq('user_id',sbUser.id);
+ if(data)data.forEach(a=>{if(!hasId(S.applied,a.job_id))S.applied.push(a.job_id)});save();
+}
+cloudInit();
 render();
 renderChat();
 </script>
