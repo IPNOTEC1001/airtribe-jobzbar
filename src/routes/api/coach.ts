@@ -33,7 +33,7 @@ export const Route = createFileRoute("/api/coach")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const key = process.env.LOVABLE_API_KEY;
+        const key = process.env["LOVABLE_API_KEY"];
         if (!key) return Response.json({ error: "AI coach is not configured." }, { status: 500 });
         let body: z.infer<typeof Body>;
         try {
